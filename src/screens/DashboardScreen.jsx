@@ -17,6 +17,8 @@ export default function DashboardScreen() {
   const navigate = useNavigate();
   const {
     tasks,
+    isLoading,
+    loadError,
     toggleTask,
     addTask,
     totalCount,
@@ -309,8 +311,22 @@ export default function DashboardScreen() {
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
               </svg>
             </div>
-            <p className="text-sm font-medium text-[#495057] dark:text-[#ADB5BD]">해당하는 할 일이 없습니다</p>
-            <p className="text-xs text-[#868E96] mt-0.5">우측 하단 (+) 버튼을 눌러 새 할 일을 등록해보세요</p>
+            {/* 불러오는 중 / 불러오기 실패 / 할 일이 하나도 없음 / 필터 결과 없음 순서로 문구를 고른다 */}
+            {isLoading && (
+              <p className="text-sm font-medium text-[#495057] dark:text-[#ADB5BD]">불러오는 중…</p>
+            )}
+            {!isLoading && loadError !== '' && (
+              <p className="text-sm font-medium text-[#FA5252] dark:text-[#FF6B6B]">{loadError}</p>
+            )}
+            {!isLoading && loadError === '' && tasks.length === 0 && (
+              <p className="text-sm font-medium text-[#495057] dark:text-[#ADB5BD]">할 일이 없습니다. + 버튼으로 추가해 보세요</p>
+            )}
+            {!isLoading && loadError === '' && tasks.length > 0 && (
+              <>
+                <p className="text-sm font-medium text-[#495057] dark:text-[#ADB5BD]">해당하는 할 일이 없습니다</p>
+                <p className="text-xs text-[#868E96] mt-0.5">우측 하단 (+) 버튼을 눌러 새 할 일을 등록해보세요</p>
+              </>
+            )}
           </div>
         ) : (
           filteredTasks.map((task) => (

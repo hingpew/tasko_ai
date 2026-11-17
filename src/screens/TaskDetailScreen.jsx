@@ -15,8 +15,12 @@ export default function TaskDetailScreen() {
   const navigate = useNavigate();
   const { tasks, updateTask, deleteTask } = useTasks();
 
-  const taskId = Number(id);
-  const task = tasks.find((t) => t.id === taskId);
+  // 주소의 id는 글자이므로, 목록의 id(숫자 또는 글자)와 글자로 맞춰 비교한다
+  const task = tasks.find((t) => String(t.id) === id);
+  let taskId = id;
+  if (task) {
+    taskId = task.id;
+  }
 
   // 폼의 처음 값: 찾은 할 일의 값으로 채운다 (할 일이 없으면 기본값)
   let initialTitle = '';
