@@ -96,6 +96,8 @@ export function TaskProvider({ children }) {
 }
 
 // 편의를 위한 Custom Hook
+// 데이터 로직을 TaskContext.jsx 한 파일에 두기 위해, 빠른 새로고침 경고는 이 줄에서만 끈다
+// eslint-disable-next-line react-refresh/only-export-components
 export function useTasks() {
   const context = useContext(TaskContext);
   if (!context) {

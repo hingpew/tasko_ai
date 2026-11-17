@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTasks } from '../context/TaskContext.jsx';
 
@@ -18,26 +18,32 @@ export default function TaskDetailScreen() {
   const taskId = Number(id);
   const task = tasks.find((t) => t.id === taskId);
 
-  // 로컬 폼 상태
-  const [title, setTitle] = useState('');
-  const [priority, setPriority] = useState('medium');
-  const [tag, setTag] = useState('#생활');
-  const [dueDate, setDueDate] = useState('');
-  const [starred, setStarred] = useState(false);
-  const [completed, setCompleted] = useState(false);
-  const [createdAt, setCreatedAt] = useState('2026.11.10');
+  // 폼의 처음 값: 찾은 할 일의 값으로 채운다 (할 일이 없으면 기본값)
+  let initialTitle = '';
+  let initialPriority = 'medium';
+  let initialTag = '#생활';
+  let initialDueDate = '';
+  let initialStarred = false;
+  let initialCompleted = false;
+  let initialCreatedAt = '2026.11.10';
+  if (task) {
+    initialTitle = task.title;
+    initialPriority = task.priority || 'medium';
+    initialTag = task.tag || '#생활';
+    initialDueDate = task.dueDate || '';
+    initialStarred = Boolean(task.starred);
+    initialCompleted = Boolean(task.completed);
+    initialCreatedAt = task.createdAt || '2026.11.10';
+  }
 
-  useEffect(() => {
-    if (task) {
-      setTitle(task.title);
-      setPriority(task.priority || 'medium');
-      setTag(task.tag || '#생활');
-      setDueDate(task.dueDate || '');
-      setStarred(Boolean(task.starred));
-      setCompleted(Boolean(task.completed));
-      setCreatedAt(task.createdAt || '2026.11.10');
-    }
-  }, [task]);
+  // 로컬 폼 상태 (useEffect 없이 처음 값으로 바로 시작)
+  const [title, setTitle] = useState(initialTitle);
+  const [priority, setPriority] = useState(initialPriority);
+  const [tag, setTag] = useState(initialTag);
+  const [dueDate, setDueDate] = useState(initialDueDate);
+  const [starred, setStarred] = useState(initialStarred);
+  const [completed, setCompleted] = useState(initialCompleted);
+  const [createdAt] = useState(initialCreatedAt);
 
   if (!task) {
     return (

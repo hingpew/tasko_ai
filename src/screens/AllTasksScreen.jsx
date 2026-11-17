@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import { useTasks } from '../context/TaskContext.jsx';
 import TaskCard from '../components/TaskCard.jsx';
 import BottomSheet from '../components/BottomSheet.jsx';
+
+// 움직이는 div (카드 등장/퇴장 효과용)
+const MotionDiv = motion.div;
 
 /**
  * Tasko 모바일 전체 할 일 목록 화면
@@ -229,16 +233,28 @@ export default function AllTasksScreen() {
 
       {/* 3. 태스크 리스트 메인 스크롤 영역 */}
       <main className="flex-1 overflow-y-auto px-5 py-3.5 space-y-3 pb-24 no-scrollbar">
-        {filteredTasks.length === 0 ? (
+        {filteredTasks.length === 0 && (
           <div className="h-44 flex flex-col items-center justify-center text-center p-6 bg-white rounded-2xl border border-dashed border-[#E9ECEF]">
             <p className="text-sm font-medium text-[#495057]">조건에 맞는 할 일이 없습니다</p>
             <p className="text-xs text-[#868E96] mt-1">필터를 변경하거나 새 할 일을 추가해보세요</p>
           </div>
-        ) : (
-          filteredTasks.map((task) => (
-            <TaskCard key={task.id} task={task} onToggle={toggleTask} />
-          ))
         )}
+
+        {/* 카드 목록: 추가될 때 아래에서 올라오고, 빠질 때 흐려지며 사라진다 */}
+        {/* initial={false}: 화면을 처음 열 때는 효과 없이 바로 보여 준다 */}
+        <AnimatePresence initial={false}>
+          {filteredTasks.map((task) => (
+            <MotionDiv
+              key={task.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+            >
+              <TaskCard task={task} onToggle={toggleTask} />
+            </MotionDiv>
+          ))}
+        </AnimatePresence>
       </main>
 
       {/* 4. 플로팅 액션 버튼 (FAB +) */}
