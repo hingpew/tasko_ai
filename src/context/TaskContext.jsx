@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { getDueInfo } from '../utils/date.js';
 
 // 할 일 상태 공유를 위한 React Context
 const TaskContext = createContext(null);
@@ -11,10 +12,12 @@ const TaskContext = createContext(null);
 
 // 테이블 한 행(row)을 화면에서 쓰는 할 일 모양으로 바꾼다
 function rowToTask(row) {
-  // 마감일이 비어 있으면 "마감 없음"으로 보여 준다 (날짜 계산은 다음에 한다)
-  let dueDate = '마감 없음';
+  // 마감 날짜를 오늘과 비교해 화면에 보일 글자(오늘, 내일, 3일 지남 등)를 만든다
+  const dueInfo = getDueInfo(row.due_date);
+  // 날짜 선택 칸에 넣을 원래 날짜 값 (없으면 null)
+  let dueDateValue = null;
   if (row.due_date) {
-    dueDate = row.due_date;
+    dueDateValue = String(row.due_date).slice(0, 10);
   }
 
   // 만든 날짜는 2026-11-17... 형태에서 앞 10글자만 잘라 2026.11.17 로 보여 준다
@@ -31,22 +34,28 @@ function rowToTask(row) {
     priority: row.priority,
     completed: Boolean(row.is_done),
     starred: Boolean(row.is_starred),
-    dueDate: dueDate,
-    isOverdue: false,
+    dueDate: dueInfo.label,
+    dueDateValue: dueDateValue,
+    isOverdue: dueInfo.isOverdue,
     createdAt: createdAt,
   };
 }
 
 // 화면에서 쓰는 할 일을 테이블에 저장할 모양으로 바꾼다
 // - user_id는 데이터베이스가 자동으로 채우므로 보내지 않는다
-// - 마감일(due_date)은 지금은 비워 둔다(null)
+// - 마감일(due_date)은 'YYYY-MM-DD' 날짜, 비어 있으면 null
 function taskToRow(task) {
+  let dueDate = null;
+  if (task.dueDate) {
+    dueDate = task.dueDate;
+  }
   return {
     title: task.title,
     category: task.tag,
     priority: task.priority,
-    due_date: null,
+    due_date: dueDate,
     is_starred: Boolean(task.starred),
+    is_done: Boolean(task.completed),
   };
 }
 
@@ -123,23 +132,57 @@ export function TaskProvider({ children }) {
     };
   }, []);
 
-  // 할 일 완료 상태 토글 함수 (이번에는 화면 안에서만 바뀐다)
-  const toggleTask = (id) => {
+  // 목록에서 id가 같은 할 일의 완료 값만 바꾼다
+  function setCompleted(id, completed) {
     setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
+      prevTasks.map((task) => {
+        if (task.id === id) {
+          return { ...task, completed: completed };
+        }
+        return task;
+      })
     );
-  };
+  }
+
+  // 할 일 완료 상태 토글 함수
+  // 먼저 화면에 바로 반영하고, 서버에 저장한다. 저장에 실패하면 원래 값으로 되돌린다.
+  async function toggleTask(id) {
+    if (!supabase) {
+      window.alert('서버 설정이 없어 저장할 수 없습니다.');
+      return;
+    }
+
+    const target = tasks.find((task) => task.id === id);
+    if (!target) {
+      return;
+    }
+    const before = target.completed;
+    const after = !before;
+
+    // 1) 화면에 먼저 반영
+    setCompleted(id, after);
+
+    // 2) 서버에 저장
+    const result = await supabase.from('tasks').update({ is_done: after }).eq('id', id).select();
+
+    // 3) 실패(오류 또는 저장된 행이 없음)하면 되돌리고 알린다
+    if (result.error || !result.data || result.data.length === 0) {
+      console.error('완료 상태 저장 실패:', result.error);
+      setCompleted(id, before);
+      window.alert('완료 상태를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  }
 
   // 할 일 추가 함수: tasks 테이블에 저장하고, 저장된 행을 목록 맨 앞에 넣는다
-  async function addTask({ title, priority = 'medium', tag = '#생활', starred = false }) {
+  async function addTask({ title, priority = 'medium', tag = '#생활', dueDate = null, starred = false }) {
     if (!supabase) {
       window.alert('서버 설정이 없어 할 일을 저장할 수 없습니다.');
       return null;
     }
 
-    const row = taskToRow({ title, tag, priority, starred });
+    const row = taskToRow({ title, tag, priority, dueDate, starred });
+    // 새 할 일은 항상 미완료로 시작하므로 is_done은 보내지 않는다 (데이터베이스 기본값 사용)
+    delete row.is_done;
     const result = await supabase.from('tasks').insert(row).select().single();
 
     if (result.error) {
@@ -153,19 +196,56 @@ export function TaskProvider({ children }) {
     return newTask;
   }
 
-  // 할 일 수정 함수 (이번에는 화면 안에서만 바뀐다)
-  const updateTask = (id, updatedFields) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === id ? { ...task, ...updatedFields } : task
-      )
-    );
-  };
+  // 할 일 수정 함수: 서버에 저장이 끝난 뒤에 화면에 반영한다
+  // 저장에 성공하면 true, 실패하면 false를 돌려준다
+  async function updateTask(id, { title, priority, tag, dueDate, starred, completed }) {
+    if (!supabase) {
+      window.alert('서버 설정이 없어 저장할 수 없습니다.');
+      return false;
+    }
 
-  // 할 일 삭제 함수 (이번에는 화면 안에서만 바뀐다)
-  const deleteTask = (id) => {
+    const row = taskToRow({ title, tag, priority, dueDate, starred, completed });
+    const result = await supabase.from('tasks').update(row).eq('id', id).select().single();
+
+    if (result.error) {
+      console.error('할 일 수정 실패:', result.error);
+      window.alert('수정 내용을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      return false;
+    }
+
+    // 서버가 돌려준 최신 행으로 목록의 해당 할 일을 바꾼다
+    const savedTask = rowToTask(result.data);
+    setTasks((prevTasks) =>
+      prevTasks.map((task) => {
+        if (task.id === id) {
+          return savedTask;
+        }
+        return task;
+      })
+    );
+    return true;
+  }
+
+  // 할 일 삭제 함수: 서버에서 지운 뒤에 화면에서 뺀다
+  // 삭제에 성공하면 true, 실패하면 false를 돌려준다
+  async function deleteTask(id) {
+    if (!supabase) {
+      window.alert('서버 설정이 없어 삭제할 수 없습니다.');
+      return false;
+    }
+
+    const result = await supabase.from('tasks').delete().eq('id', id).select();
+
+    // 오류가 났거나, 지워진 행이 없으면(권한 없음 등) 실패로 본다
+    if (result.error || !result.data || result.data.length === 0) {
+      console.error('할 일 삭제 실패:', result.error);
+      window.alert('할 일을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      return false;
+    }
+
     setTasks((prevTasks) => prevTasks.filter((task) => task.id !== id));
-  };
+    return true;
+  }
 
   // 통계 계산
   const totalCount = tasks.length;

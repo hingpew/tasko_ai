@@ -12,6 +12,24 @@ import { useTasks } from '../context/TaskContext.jsx';
  */
 export default function TaskDetailScreen() {
   const { id } = useParams();
+  const { isLoading } = useTasks();
+
+  // 목록을 불러오는 동안에는 폼을 만들지 않는다
+  // (새로고침으로 이 화면을 바로 열면, 불러오기 전의 빈 값으로 폼이 시작되는 것을 막기 위함)
+  if (isLoading) {
+    return (
+      <div className="w-full h-full bg-[#F8F9FA] dark:bg-[#121417] flex items-center justify-center">
+        <p className="text-sm font-medium text-[#495057] dark:text-[#ADB5BD]">불러오는 중…</p>
+      </div>
+    );
+  }
+
+  return <TaskDetailForm key={id} />;
+}
+
+// 할 일 상세/수정 폼 (목록 불러오기가 끝난 뒤에만 그려진다)
+function TaskDetailForm() {
+  const { id } = useParams();
   const navigate = useNavigate();
   const { tasks, updateTask, deleteTask } = useTasks();
 
@@ -34,7 +52,8 @@ export default function TaskDetailScreen() {
     initialTitle = task.title;
     initialPriority = task.priority || 'medium';
     initialTag = task.tag || '#생활';
-    initialDueDate = task.dueDate || '';
+    // 날짜 선택 칸에는 라벨(오늘, 내일...)이 아니라 저장된 날짜 값(YYYY-MM-DD)을 넣는다
+    initialDueDate = task.dueDateValue || '';
     initialStarred = Boolean(task.starred);
     initialCompleted = Boolean(task.completed);
     initialCreatedAt = task.createdAt || '2026.11.10';
@@ -69,30 +88,40 @@ export default function TaskDetailScreen() {
     setCompleted(!completed);
   };
 
-  // 삭제 처리
-  const handleDelete = () => {
+  // 삭제 처리: 서버에서 지워진 것을 확인한 뒤에만 이전 화면으로 돌아간다
+  async function handleDelete() {
     if (window.confirm('이 할 일을 삭제하시겠습니까?')) {
-      deleteTask(taskId);
-      navigate(-1);
+      const isDeleted = await deleteTask(taskId);
+      if (isDeleted) {
+        navigate(-1);
+      }
     }
-  };
+  }
 
-  // 저장 처리
-  const handleSave = (e) => {
+  // 저장 처리: 서버에 저장된 것을 확인한 뒤에만 이전 화면으로 돌아간다
+  async function handleSave(e) {
     e.preventDefault();
     if (!title.trim()) return;
 
-    updateTask(taskId, {
+    // 마감일 칸이 비어 있으면 null(마감 없음)로 저장한다
+    let dueDateToSave = null;
+    if (dueDate !== '') {
+      dueDateToSave = dueDate;
+    }
+
+    const isSaved = await updateTask(taskId, {
       title: title.trim(),
       priority,
       tag,
-      dueDate: dueDate.trim() || '오늘',
+      dueDate: dueDateToSave,
       starred,
       completed,
     });
 
-    navigate(-1);
-  };
+    if (isSaved) {
+      navigate(-1);
+    }
+  }
 
   return (
     <div className="relative w-full h-full bg-[#F8F9FA] dark:bg-[#121417] flex flex-col overflow-hidden select-none">
@@ -265,10 +294,10 @@ export default function TaskDetailScreen() {
               <div className="relative">
                 <input
                   id="editDueDateInput"
-                  type="text"
+                  type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full h-12 px-3.5 pr-10 rounded-xl border border-[#E9ECEF] dark:border-[#2C3036] bg-white dark:bg-[#1E2125] text-[#212529] dark:text-[#F1F3F5] font-medium text-[15px] focus:border-[#1EA65C] focus:ring-1 focus:ring-[#1EA65C] focus:outline-none transition-colors"
+                  className="[&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer dark:scheme-dark w-full h-12 px-3.5 pr-10 rounded-xl border border-[#E9ECEF] dark:border-[#2C3036] bg-white dark:bg-[#1E2125] text-[#212529] dark:text-[#F1F3F5] font-medium text-[15px] focus:border-[#1EA65C] focus:ring-1 focus:ring-[#1EA65C] focus:outline-none transition-colors"
                 />
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-[#495057] dark:text-[#ADB5BD]">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">

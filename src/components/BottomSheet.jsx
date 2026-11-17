@@ -8,7 +8,8 @@ export default function BottomSheet({ isOpen, onClose, onAddTask }) {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState('medium');
   const [tag, setTag] = useState('#생활');
-  const [dueDate, setDueDate] = useState('오늘 마감');
+  // 마감일은 'YYYY-MM-DD' 날짜이고, 비워 두면 '마감 없음'이다
+  const [dueDate, setDueDate] = useState('');
   const [starred, setStarred] = useState(false);
 
   if (!isOpen) return null;
@@ -17,11 +18,17 @@ export default function BottomSheet({ isOpen, onClose, onAddTask }) {
     e.preventDefault();
     if (!title.trim()) return;
 
+    // 마감일 칸이 비어 있으면 null로 넘긴다
+    let dueDateToSave = null;
+    if (dueDate !== '') {
+      dueDateToSave = dueDate;
+    }
+
     onAddTask({
       title: title.trim(),
       priority,
       tag,
-      dueDate: dueDate.trim() || '오늘',
+      dueDate: dueDateToSave,
       starred,
     });
 
@@ -29,7 +36,7 @@ export default function BottomSheet({ isOpen, onClose, onAddTask }) {
     setTitle('');
     setPriority('medium');
     setTag('#생활');
-    setDueDate('오늘 마감');
+    setDueDate('');
     setStarred(false);
     onClose();
   };
@@ -163,12 +170,11 @@ export default function BottomSheet({ isOpen, onClose, onAddTask }) {
                 마감일
               </label>
               <input
-                type="text"
+                type="date"
                 id="modalDueDateInput"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                placeholder="오늘 19:00, 내일 등"
-                className="w-full h-11 px-3 rounded-xl bg-[#F8F9FA] dark:bg-[#121417] border border-[#E9ECEF] dark:border-[#2C3036] text-xs font-medium text-[#212529] dark:text-[#F1F3F5] focus:outline-none focus:border-[#1EA65C]"
+                className="dark:scheme-dark w-full h-11 px-3 rounded-xl bg-[#F8F9FA] dark:bg-[#121417] border border-[#E9ECEF] dark:border-[#2C3036] text-xs font-medium text-[#212529] dark:text-[#F1F3F5] focus:outline-none focus:border-[#1EA65C]"
               />
             </div>
           </div>

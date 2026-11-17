@@ -46,8 +46,8 @@ export default function TaskCard({ task, onToggle }) {
     navigate(`/tasks/${task.id}`);
   };
 
-  // 마감 기한 지남 여부 판별
-  const isOverdue = task.isOverdue || (task.dueDate && task.dueDate.includes('기한 지남'));
+  // 마감 기한 지남 여부: 날짜 비교 결과(isOverdue)를 그대로 쓴다
+  const isOverdue = task.isOverdue;
 
   return (
     <article
